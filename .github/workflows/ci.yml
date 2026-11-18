@@ -17,6 +17,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         go: ["1.22", "stable"]
+        exclude:
+          # Go 1.22's linker writes binaries the current macOS runner refuses
+          # to load ("missing LC_UUID load command"); 1.22 is tested on Linux and Windows.
+          - os: macos-latest
+            go: "1.22"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -64,5 +69,10 @@ jobs:
           socketserver.ThreadingTCPServer(('0.0.0.0', 3128), H).serve_forever()"
           docker run -d --name gw --network lab -p 127.0.0.1:8080:8080 -p 127.0.0.1:8081:8081 rotating-proxy-gateway:ci upstream:3128
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8081/healthz && break; sleep 1; done
-          curl -fsS -x http://127.0.0.1:8080 http://example.test/hello | grep -q "via-upstream http://example.test/hello"
+          # The upstream container may still be starting: retry, clearing the cooldown each time.
+          for i in $(seq 1 30); do
+            if curl -fsS -x http://127.0.0.1:8080 http://example.test/hello > out.txt; then break; fi
+            curl -fsS -X POST http://127.0.0.1:8081/revive; sleep 1
+          done
+          grep -q "via-upstream http://example.test/hello" out.txt
           curl -fsS http://127.0.0.1:8081/status
