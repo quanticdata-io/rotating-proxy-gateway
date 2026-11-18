@@ -1,0 +1,4 @@
+# upstreams started by go run ./examples/locallab
+127.0.0.1:18091
+127.0.0.1:18092
+demo:demo@127.0.0.1:18093

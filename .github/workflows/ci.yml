@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, go ${{ matrix.go }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go: ["1.22", "stable"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+      - run: go build ./...
+      - run: go vet ./...
+      - name: test
+        if: runner.os == 'Windows'
+        run: go test ./...
+      - name: test with the race detector
+        if: runner.os != 'Windows'
+        run: go test -race -coverprofile=coverage.out ./...
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          # golangci-lint v2.6 cannot read the export data of newer Go releases;
+          # bump both together.
+          go-version: "1.25"
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.6
+
+  docker:
+    name: Docker image builds and serves
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t rotating-proxy-gateway:ci .
+      - name: Smoke test (local upstream, no network)
+        run: |
+          docker network create lab
+          docker run -d --name upstream --network lab python:3.12-alpine python -c "
+          import http.server, socketserver
+          class H(http.server.BaseHTTPRequestHandler):
+              def do_GET(self):
+                  body = b'via-upstream ' + self.path.encode()
+                  self.send_response(200); self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body)
+          socketserver.ThreadingTCPServer(('0.0.0.0', 3128), H).serve_forever()"
+          docker run -d --name gw --network lab -p 127.0.0.1:8080:8080 -p 127.0.0.1:8081:8081 rotating-proxy-gateway:ci upstream:3128
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8081/healthz && break; sleep 1; done
+          curl -fsS -x http://127.0.0.1:8080 http://example.test/hello | grep -q "via-upstream http://example.test/hello"
+          curl -fsS http://127.0.0.1:8081/status
