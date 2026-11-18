@@ -1,0 +1,4 @@
+# One upstream per line. Any provider works.
+# user:pass@gw.example.net:8080
+# socks5://user:pass@198.51.100.4:1080
+# gw.example.net:8080:user:pass

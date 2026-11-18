@@ -1,0 +1,21 @@
+# The gateway next to a worker container. The worker uses the gateway with no
+# proxy credentials; only the gateway holds them (in proxies.txt).
+#
+#   cp proxies.example.txt proxies.txt   # then fill it
+#   docker compose -f examples/docker-compose.yml up --build
+services:
+  gateway:
+    build: ..
+    command: ["-f", "/run/proxies.txt", "--strategy", "least-conn", "--health-interval", "5m"]
+    volumes:
+      - ./proxies.txt:/run/proxies.txt:ro
+    ports:
+      - "127.0.0.1:8081:8081"   # status page on the host only
+
+  worker:
+    image: curlimages/curl:8.10.1
+    depends_on: [gateway]
+    environment:
+      HTTPS_PROXY: http://gateway:8080
+      HTTP_PROXY: http://gateway:8080
+    entrypoint: ["sh", "-c", "for i in 1 2 3; do curl -s https://api.quanticdata.io/v1/public/ip-echo; echo; done"]

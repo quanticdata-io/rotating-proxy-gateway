@@ -1,0 +1,8 @@
+/rotating-proxy-gateway
+/rotating-proxy-gateway.exe
+/dist/
+*.test
+*.out
+coverage.*
+.idea/
+.vscode/
