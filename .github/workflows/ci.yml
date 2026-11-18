@@ -19,7 +19,7 @@ jobs:
         go: ["1.22", "stable"]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go }}
       - run: go build ./...
@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           # golangci-lint v2.6 cannot read the export data of newer Go releases;
           # bump both together.
